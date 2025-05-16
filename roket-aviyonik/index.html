@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deneyap Roket Veri İzleme</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            max-width: 1200px;
+            margin: 20px auto;
+            gap: 20px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            flex: 1;
+            min-width: 300px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        #rocketCanvas {
+            width: 100%;
+            height: 400px;
+            border-radius: 8px;
+        }
+        .control-panel {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .sensor-value {
+            font-weight: bold;
+            color: #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>Deneyap Roket Veri İzleme Panosu</h1>
+            <p>Bu panel, Deneyap kartından gelen verileri gösterir ve roket modelini kontrol eder.</p>
+            
+            <div class="control-panel">
+                <button id="connectBtn">Deneyap Karta Bağlan</button>
+                <button id="disconnectBtn" disabled>Bağlantıyı Kes</button>
+                <button id="simulateBtn">Verileri Simüle Et</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Roket Modeli</h2>
+            <div id="rocketCanvas"></div>
+        </div>
+        
+        <div class="card">
+            <h2>Sensör Verileri</h2>
+            <table id="sensorData">
+                <tr>
+                    <th>Sensör</th>
+                    <th>Değer</th>
+                    <th>Birim</th>
+                </tr>
+                <tr>
+                    <td>İrtifa</td>
+                    <td id="altitude" class="sensor-value">-</td>
+                    <td>m</td>
+                </tr>
+                <tr>
+                    <td>Basınç</td>
+                    <td id="pressure" class="sensor-value">-</td>
+                    <td>hPa</td>
+                </tr>
+                <tr>
+                    <td>Sıcaklık</td>
+                    <td id="temperature" class="sensor-value">-</td>
+                    <td>°C</td>
+                </tr>
+                <tr>
+                    <td>GPS Enlem</td>
+                    <td id="gpsLat" class="sensor-value">-</td>
+                    <td>°</td>
+                </tr>
+                <tr>
+                    <td>GPS Boylam</td>
+                    <td id="gpsLon" class="sensor-value">-</td>
+                    <td>°</td>
+                </tr>
+                <tr>
+                    <td>X Eksen İvme</td>
+                    <td id="accelX" class="sensor-value">-</td>
+                    <td>m/s²</td>
+                </tr>
+                <tr>
+                    <td>Y Eksen İvme</td>
+                    <td id="accelY" class="sensor-value">-</td>
+                    <td>m/s²</td>
+                </tr>
+                <tr>
+                    <td>Z Eksen İvme</td>
+                    <td id="accelZ" class="sensor-value">-</td>
+                    <td>m/s²</td>
+                </tr>
+            </table>
+        </div>
+        
+        <div class="card">
+            <h2>Veri Geçmişi</h2>
+            <table id="dataHistory">
+                <thead>
+                    <tr>
+                        <th>Zaman</th>
+                        <th>İrtifa (m)</th>
+                        <th>Basınç (hPa)</th>
+                        <th>Sıcaklık (°C)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Veri geçmişi buraya eklenecek -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Değişkenler
+        let serialPort;
+        let reader;
+        let isConnected = false;
+        let simulationInterval;
+        
+        // Three.js değişkenleri
+        let scene, camera, renderer, rocket;
+        
+        // DOM Elementleri
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const simulateBtn = document.getElementById('simulateBtn');
+        
+        // Sensör verilerini güncelleme fonksiyonu
+        function updateSensorData(data) {
+            document.getElementById('altitude').textContent = data.altitude.toFixed(2);
+            document.getElementById('pressure').textContent = data.pressure.toFixed(2);
+            document.getElementById('temperature').textContent = data.temperature.toFixed(2);
+            document.getElementById('gpsLat').textContent = data.gpsLat.toFixed(6);
+            document.getElementById('gpsLon').textContent = data.gpsLon.toFixed(6);
+            document.getElementById('accelX').textContent = data.accelX.toFixed(2);
+            document.getElementById('accelY').textContent = data.accelY.toFixed(2);
+            document.getElementById('accelZ').textContent = data.accelZ.toFixed(2);
+            
+            // Roket modelini güncelle
+            updateRocketOrientation(data.accelX, data.accelY, data.accelZ);
+            
+            // Veri geçmişine ekle
+            addToHistory(data);
+        }
+        
+        // Veri geçmişine ekleme
+        function addToHistory(data) {
+            const table = document.getElementById('dataHistory').getElementsByTagName('tbody')[0];
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            
+            const newRow = table.insertRow(0);
+            
+            const cell1 = newRow.insertCell(0);
+            const cell2 = newRow.insertCell(1);
+            const cell3 = newRow.insertCell(2);
+            const cell4 = newRow.insertCell(3);
+            
+            cell1.textContent = timeString;
+            cell2.textContent = data.altitude.toFixed(2);
+            cell3.textContent = data.pressure.toFixed(2);
+            cell4.textContent = data.temperature.toFixed(2);
+            
+            // Maksimum 10 satır göster
+            if (table.rows.length > 10) {
+                table.deleteRow(10);
+            }
+        }
+        
+        // Serial port bağlantısı
+        async function connectToSerialPort() {
+            try {
+                // Kullanıcıdan bir seri port seçmesini iste
+                serialPort = await navigator.serial.requestPort();
+                
+                // Portu aç
+                await serialPort.open({ baudRate: 9600 });
+                
+                // Reader oluştur
+                reader = serialPort.readable.getReader();
+                
+                isConnected = true;
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                
+                // Eğer simülasyon çalışıyorsa durdur
+                if (simulationInterval) {
+                    clearInterval(simulationInterval);
+                    simulationInterval = null;
+                }
+                
+                // Veri okumaya başla
+                readSerialData();
+                
+            } catch (error) {
+                console.error('Seri port bağlantı hatası:', error);
+                alert('Seri port bağlantısı kurulamadı. Lütfen tekrar deneyin.');
+            }
+        }
+        
+        // Seri porttan veri okuma
+        async function readSerialData() {
+            const decoder = new TextDecoder();
+            let buffer = '';
+            
+            try {
+                while (isConnected) {
+                    const { value, done } = await reader.read();
+                    
+                    if (done) {
+                        break;
+                    }
+                    
+                    // Alınan verileri ara belleğe ekle
+                    buffer += decoder.decode(value);
+                    
+                    // Satır sonları aramak
+                    const lines = buffer.split('\n');
+                    
+                    // Tam satırları işle, son satırı (muhtemelen tamamlanmamış) ara belleğe geri koy
+                    buffer = lines.pop();
+                    
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            try {
+                                const data = JSON.parse(line);
+                                updateSensorData(data);
+                            } catch (e) {
+                                console.warn('Geçersiz JSON formatı:', line);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Veri okuma hatası:', error);
+            } finally {
+                disconnectFromSerialPort();
+            }
+        }
+        
+        // Seri port bağlantısını kesme
+        async function disconnectFromSerialPort() {
+            if (isConnected) {
+                isConnected = false;
+                
+                try {
+                    await reader.cancel();
+                    await serialPort.close();
+                } catch (error) {
+                    console.error('Bağlantıyı kesme hatası:', error);
+                }
+                
+                reader = null;
+                serialPort = null;
+                
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+            }
+        }
+        
+        // Veri simülasyonu
+        function simulateData() {
+            if (simulationInterval) {
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+                simulateBtn.textContent = "Verileri Simüle Et";
+                return;
+            }
+            
+            simulateBtn.textContent = "Simülasyonu Durdur";
+            
+            let alt = 0;
+            let altDirection = 1;
+            
+            simulationInterval = setInterval(() => {
+                // Rasgele değerler oluştur
+                alt += altDirection * (Math.random() * 0.5);
+                
+                if (alt > 100) altDirection = -1;
+                if (alt < 0) {
+                    alt = 0;
+                    altDirection = 1;
+                }
+                
+                const data = {
+                    altitude: alt,
+                    pressure: 1013 - alt * 0.12,
+                    temperature: 25 - alt * 0.01,
+                    gpsLat: 41.015137 + Math.random() * 0.0001,
+                    gpsLon: 28.979530 + Math.random() * 0.0001,
+                    accelX: Math.sin(Date.now() * 0.001) * 2,
+                    accelY: Math.cos(Date.now() * 0.001) * 2,
+                    accelZ: Math.sin(Date.now() * 0.0005) * 3
+                };
+                
+                updateSensorData(data);
+            }, 1000);
+        }
+        
+        // Three.js ile roket modelini oluştur
+        function initThreeJS() {
+            // Sahne oluştur
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f0f0);
+            
+            // Kamera oluştur
+            camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+            camera.position.z = 5;
+            
+            // Renderer oluştur
+            const canvas = document.getElementById('rocketCanvas');
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            canvas.appendChild(renderer.domElement);
+            
+            // Pencere boyutu değiştiğinde güncelle
+            window.addEventListener('resize', () => {
+                renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+                camera.aspect = canvas.clientWidth / canvas.clientHeight;
+                camera.updateProjectionMatrix();
+            });
+            
+            // Işıklar ekle
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+            
+            // Roket modeli oluştur
+            createRocketModel();
+            
+            // Animasyon döngüsü
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+            
+            animate();
+        }
+        
+        // Basit bir roket modeli oluştur
+        function createRocketModel() {
+            // Roket gövdesi
+            const geometry = new THREE.CylinderGeometry(0.1, 0.3, 2, 32);
+            const material = new THREE.MeshStandardMaterial({ color: 0xff4444 });
+            rocket = new THREE.Mesh(geometry, material);
+            scene.add(rocket);
+            
+            // Roket burun konisi
+            const coneGeometry = new THREE.ConeGeometry(0.1, 0.5, 32);
+            const coneMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+            cone.position.y = 1.25;
+            rocket.add(cone);
+            
+            // Roket kanatları
+            const finGeometry = new THREE.BoxGeometry(0.1, 0.5, 0.5);
+            const finMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+            
+            // 4 kanat ekle
+            for (let i = 0; i < 4; i++) {
+                const fin = new THREE.Mesh(finGeometry, finMaterial);
+                fin.position.y = -0.8;
+                fin.position.x = Math.sin(i * Math.PI / 2) * 0.3;
+                fin.position.z = Math.cos(i * Math.PI / 2) * 0.3;
+                fin.rotation.x = Math.PI / 2;
+                rocket.add(fin);
+            }
+            
+            // Roket hizalama
+            rocket.rotation.x = Math.PI / 2;
+        }
+        
+        // İvme verilerine göre roket yönünü güncelle
+        function updateRocketOrientation(accelX, accelY, accelZ) {
+            if (!rocket) return;
+            
+            // İvme değerlerini kullanarak yönlendirme
+            // Not: Bu basit bir örnek, gerçek bir IMU'dan gelen verileri
+            // kullanırken daha karmaşık bir dönüşüm gerekebilir
+            
+            // Yavaş hareket için değerleri ölçeklendir
+            const scaleFactor = 0.1;
+            
+            // Roketin mevcut yönünü koru ve yeni değerleri ekle
+            rocket.rotation.z += accelX * scaleFactor;
+            rocket.rotation.y += accelY * scaleFactor;
+            
+            // X-ekseni rotasyonunu sınırla
+            const maxRotation = Math.PI / 4;
+            rocket.rotation.z = Math.max(Math.min(rocket.rotation.z, maxRotation), -maxRotation);
+            rocket.rotation.y = Math.max(Math.min(rocket.rotation.y, maxRotation), -maxRotation);
+        }
+        
+        // Event listeners
+        connectBtn.addEventListener('click', connectToSerialPort);
+        disconnectBtn.addEventListener('click', disconnectFromSerialPort);
+        simulateBtn.addEventListener('click', simulateData);
+        
+        // Sayfa yüklendiğinde Three.js'i başlat
+        window.addEventListener('load', initThreeJS);
+        
+        // Web Serial API kontrolü
+        if (!('serial' in navigator)) {
+            connectBtn.disabled = true;
+            alert('Web Serial API bu tarayıcıda desteklenmiyor. Lütfen Chrome/Edge veya başka bir destekleyen tarayıcı kullanın.');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tek Roket Döndürme Örneği</title>
+  <style>
+    body { margin: 0; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script>
+  // Sahne, kamera ve renderer kurulumu
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  // Roket objesi (basit koni)
+  const geometry = new THREE.ConeGeometry(0.5, 2, 32);
+  const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+  const rocket = new THREE.Mesh(geometry, material);
+  scene.add(rocket);
+
+  // Işık ekle
+  const light = new THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(5, 5, 5);
+  scene.add(light);
+
+  camera.position.z = 5;
+
+  // Örnek ivme verileri (simülasyon için)
+  let x = 0, y = 0, z = 0;
+
+  // Animasyon döngüsü
+  function animate() {
+    requestAnimationFrame(animate);
+    
+    // Roketi döndür
+    rocket.rotation.x = x;
+    rocket.rotation.y = y;
+    rocket.rotation.z = z;
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // Simülasyon: ivme verilerini rastgele değiştir (her 500ms)
+  setInterval(() => {
+    x = Math.random() * Math.PI * 2;
+    y = Math.random() * Math.PI * 2;
+    z = Math.random() * Math.PI * 2;
+  }, 500);
+
+</script>
+</body>
+</html>
