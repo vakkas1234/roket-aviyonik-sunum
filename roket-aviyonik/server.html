@@ -111,4 +111,66 @@
         const decoder = new TextDecoderStream();
         const inputDone = port.readable.pipeTo(decoder.writable);
         const inputStream = decoder.readable;
-        reader 
+        reader = inputStream.getReader();
+
+        // Sürekli veri oku
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) {
+            reader.releaseLock();
+            break;
+          }
+          if (value) {
+            parseData(value);
+          }
+        }
+
+      } catch (error) {
+        alert('Seri port bağlantısı başarısız: ' + error);
+      }
+    } else {
+      alert('Bu tarayıcıda Web Serial API desteklenmiyor.');
+    }
+  });
+
+  // Seri porttan gelen veri örneği:
+  // basinc:1013.2;x:0.5;y:1.2;z:0.8;
+
+  function parseData(data) {
+    // Gelen veriyi satırlara böl (bazı cihazlar satır satır gönderir)
+    const lines = data.split('\n');
+    lines.forEach(line => {
+      line = line.trim();
+      if (!line) return;
+
+      // Örnek: basinc:1013.2;x:0.5;y:1.2;z:0.8;
+      const pairs = line.split(';').filter(Boolean); // boş olanları çıkar
+      const dataObj = {};
+      pairs.forEach(pair => {
+        const [key, val] = pair.split(':');
+        if (key && val) {
+          dataObj[key.toLowerCase()] = parseFloat(val);
+        }
+      });
+
+      if ('basinc' in dataObj) basincCell.textContent = dataObj.basinc.toFixed(2);
+      if ('sicaklik' in dataObj) sicaklikCells.textContent = dataObj.sicaklik.toFixed(2);
+      if ('nem' in dataObj) nemCells.textContent = dataObj.nem.toFixed(2);
+      if ('x' in dataObj) {
+        rocket.rotation.x = dataObj.x;
+        xCell.textContent = dataObj.x.toFixed(2);
+      }
+      if ('y' in dataObj) {
+        rocket.rotation.y = dataObj.y;
+        yCell.textContent = dataObj.y.toFixed(2);
+      }
+      if ('z' in dataObj) {
+        rocket.rotation.z = dataObj.z;
+        zCell.textContent = dataObj.z.toFixed(2);
+      }
+    });
+  }
+</script>
+
+</body>
+</html>
