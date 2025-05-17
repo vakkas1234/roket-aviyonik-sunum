@@ -20,4 +20,14 @@ void loop() {
   float nem = dht.readHumidity();
   Serial.print("X:");
   Serial.print(x);
-  Ser
+  Serial.print(";Y");
+  Serial.print(y);
+   Serial.print(";Z");
+  Serial.print(z);
+     Serial.print(";BASINC");
+  Serial.print(basinc);
+     Serial.print(";SICAKLIK");
+  Serial.print(sicaklik);
+     Serial.print(";NEM");
+  Serial.println(nem);
+  }
