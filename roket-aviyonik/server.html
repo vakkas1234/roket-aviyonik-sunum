@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>Seri Port ile Roket Döndürme</title>
   <style>
-    /* Önceki stil aynı kalabilir */
     body, html { margin: 0; padding: 0; height: 100%; font-family: Arial; background: #121212; color: #eee; }
     #container { display: flex; height: 100vh; }
     #left, #right { flex: 1; padding: 20px; box-sizing: border-box; }
@@ -41,12 +40,20 @@
         <tr><th>Veri Türü</th><th>Değer</th></tr>
       </thead>
       <tbody>
-        <tr><td>Basınç</td><td id="basinc">-</td></tr>
-        <tr><td>X</td><td id="x">-</td></tr>
-        <tr><td>Y</td><td id="y">-</td></tr>
-        <tr><td>Z</td><td id="z">-</td></tr>
-        <tr><td>Sıcaklık</td><td id="sicaklik">-</td></tr>
-        <tr><td>Nem</td><td id="nem">-</td></tr>
+        <tr><td>Boylam</td><td id="boylam">-</td></tr>
+        <tr><td>Enlem</td><td id="enlem">-</td></tr>
+        <tr><td>GPS İrtifa</td><td id="gps_irtifa">-</td></tr>
+        <tr><td>Basınç İrtifa</td><td id="basinc_irtifa">-</td></tr>
+        <tr><td>Gyro X</td><td id="gyro_x">-</td></tr>
+        <tr><td>Gyro Y</td><td id="gyro_y">-</td></tr>
+        <tr><td>Gyro Z</td><td id="gyro_z">-</td></tr>
+        <tr><td>Accel X</td><td id="accel_x">-</td></tr>
+        <tr><td>Accel Y</td><td id="accel_y">-</td></tr>
+        <tr><td>Accel Z</td><td id="accel_z">-</td></tr>
+        <tr><td>Parasut Durumu</td><td id="parasut_durum">-</td></tr>
+        <tr><td>REALGYRO X</td><td id="realgyro_x">-</td></tr>
+        <tr><td>REALGYRO Y</td><td id="realgyro_y">-</td></tr>
+        <tr><td>REALGYRO Z</td><td id="realgyro_z">-</td></tr>
       </tbody>
     </table>
   </div>
@@ -63,16 +70,16 @@
   renderer.setSize(leftDiv.clientWidth, leftDiv.clientHeight);
   leftDiv.appendChild(renderer.domElement);
 
-  // Light
+  // Lights
   const dirLight = new THREE.DirectionalLight(0xffffff, 1);
   dirLight.position.set(5, 10, 7);
   scene.add(dirLight);
   scene.add(new THREE.AmbientLight(0x404040));
 
-  // Rocket model
+  // Rocket
   const geometry = new THREE.CylinderGeometry(0.3, 0.3, 4, 32);
   const material = new THREE.MeshStandardMaterial({ color: 0xff4444 });
-  const rocket = new THREE.Mesh(geometry, material,);
+  const rocket = new THREE.Mesh(geometry, material);
   scene.add(rocket);
 
   camera.position.z = 5;
@@ -83,92 +90,112 @@
     renderer.setSize(leftDiv.clientWidth, leftDiv.clientHeight);
   });
 
-  // Table cells
-  const basincCell = document.getElementById('basinc');
-  const xCell = document.getElementById('x');
-  const yCell = document.getElementById('y');
-  const zCell = document.getElementById('z');
-  const sicaklikCells = document.getElementById('sicaklik')
-  const nemCells = document.getElementById('nem')
   function animate() {
     requestAnimationFrame(animate);
     renderer.render(scene, camera);
   }
   animate();
 
-  // Seri portla bağlantı ve veri okuma
+  // Seri port
   const connectBtn = document.getElementById('connectBtn');
-  let port;
-  let reader;
+  let port, reader;
+  let buffer = ''; // Tamamlanmamış veriler burada tutulacak
 
-  connectBtn.addEventListener('click', async () => {
-    if ('serial' in navigator) {
-      try {
-        // Kullanıcıdan port seçmesini iste
-        port = await navigator.serial.requestPort();
-        await port.open({ baudRate: 115200 });
+connectBtn.addEventListener('click', async () => {
+  if ('serial' in navigator) {
+    try {
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
 
-        const decoder = new TextDecoderStream();
-        const inputDone = port.readable.pipeTo(decoder.writable);
-        const inputStream = decoder.readable;
-        reader = inputStream.getReader();
+      const decoder = new TextDecoderStream();
+      const inputDone = port.readable.pipeTo(decoder.writable);
+      const inputStream = decoder.readable;
+      reader = inputStream.getReader();
 
-        // Sürekli veri oku
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) {
-            reader.releaseLock();
-            break;
-          }
-          if (value) {
-            parseData(value);
-          }
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          reader.releaseLock();
+          break;
         }
+        if (value) {
+          buffer += value; // Tampon stringe ekle
 
-      } catch (error) {
-        alert('Seri port bağlantısı başarısız: ' + error);
+          // Satırları ayır (her satır \n ile bitiyor)
+          let lines = buffer.split('\n');
+
+          // Son satır tam olmayabilir, onu tamponda tut
+          buffer = lines.pop();
+
+          // Tam satırları işle
+          lines.forEach(line => {
+            line = line.trim();
+            if (line) parseData(line);
+          });
+        }
       }
-    } else {
-      alert('Bu tarayıcıda Web Serial API desteklenmiyor.');
+    } catch (error) {
+      alert('Seri port bağlantısı başarısız: ' + error);
     }
-  });
+  } else {
+    alert('Bu tarayıcıda Web Serial API desteklenmiyor.');
+  }
+});
+  
+  const elements = {
+    boylam: document.getElementById('boylam'),
+    enlem: document.getElementById('enlem'),
+    gps_irtifa: document.getElementById('gps_irtifa'),
+    basinc_irtifa: document.getElementById('basinc_irtifa'),
+    gyro_x: document.getElementById('gyro_x'),
+    gyro_y: document.getElementById('gyro_y'),
+    gyro_z: document.getElementById('gyro_z'),
+    accel_x: document.getElementById('accel_x'),
+    accel_y: document.getElementById('accel_y'),
+    accel_z: document.getElementById('accel_z'),
+    parasut_durum: document.getElementById('parasut_durum'),
+    realgyro_x: document.getElementById('realgyro_x'),
+    realgyro_y: document.getElementById('realgyro_y'),
+    realgyro_z: document.getElementById('realgyro_z'),
+  };
 
-  // Seri porttan gelen veri örneği:
-  // basinc:1013.2;x:0.5;y:1.2;z:0.8;
+  function parseData(raw) {
+    const start = raw.indexOf('#BOD');
+    const end = raw.indexOf('#EOD');
+    if (start === -1 || end === -1) return;
 
-  function parseData(data) {
-    // Gelen veriyi satırlara böl (bazı cihazlar satır satır gönderir)
-    const lines = data.split('\n');
-    lines.forEach(line => {
-      line = line.trim();
-      if (!line) return;
+    const dataStr = raw.slice(start + 4, end);
+    const pairs = dataStr.split(',').map(s => s.trim());
 
-      // Örnek: basinc:1013.2;x:0.5;y:1.2;z:0.8;
-      const pairs = line.split(';').filter(Boolean); // boş olanları çıkar
-      const dataObj = {};
-      pairs.forEach(pair => {
-        const [key, val] = pair.split(':');
-        if (key && val) {
-          dataObj[key.toLowerCase()] = parseFloat(val);
-        }
-      });
-
-      if ('basinc' in dataObj) basincCell.textContent = dataObj.basinc.toFixed(2);
-      if ('sicaklik' in dataObj) sicaklikCells.textContent = dataObj.sicaklik.toFixed(2);
-      if ('nem' in dataObj) nemCells.textContent = dataObj.nem.toFixed(2);
-      if ('x' in dataObj) {
-        rocket.rotation.x = dataObj.x;
-        xCell.textContent = dataObj.x.toFixed(2);
-      }
-      if ('y' in dataObj) {
-        rocket.rotation.y = dataObj.y;
-        yCell.textContent = dataObj.y.toFixed(2);
-      }
-      if ('z' in dataObj) {
-        rocket.rotation.z = dataObj.z;
-        zCell.textContent = dataObj.z.toFixed(2);
-      }
+    const data = {};
+    pairs.forEach(p => {
+      const [k, v] = p.split('=');
+      if (k && v) data[k.trim().toUpperCase()] = v.trim();
     });
+
+    if ('BOYLAM' in data) elements.boylam.textContent = data.BOYLAM;
+    if ('ENLEM' in data) elements.enlem.textContent = data.ENLEM;
+    if ('GPS_IRTIFA' in data) elements.gps_irtifa.textContent = data.GPS_IRTIFA;
+    if ('BASINC_IRTIFA' in data) elements.basinc_irtifa.textContent = data.BASINC_IRTIFA;
+    if ('GYRO_X' in data) elements.gyro_x.textContent = data.GYRO_X;
+    if ('GYRO_Y' in data) elements.gyro_y.textContent = data.GYRO_Y;
+    if ('GYRO_Z' in data) elements.gyro_z.textContent = data.GYRO_Z;
+    if ('ACCEL_X' in data) elements.accel_x.textContent = data.ACCEL_X;
+    if ('ACCEL_Y' in data) elements.accel_y.textContent = data.ACCEL_Y;
+    if ('ACCEL_Z' in data) elements.accel_z.textContent = data.ACCEL_Z;
+    if ('PARASUT_DURUM' in data) elements.parasut_durum.textContent = data.PARASUT_DURUM;
+    if ('REALGYRO_X' in data) {
+      elements.realgyro_x.textContent = data.REALGYRO_X;
+      rocket.rotation.x = data.REALGYRO_X
+    }
+    if ('REALGYRO_Y' in data) {
+      elements.realgyro_y.textContent = data.REALGYRO_Y;
+      rocket.rotation.y = data.REALGYRO_Y;
+    }
+    if ('REALGYRO_Z' in data) {
+      elements.realgyro_z.textContent = data.REALGYRO_Z;
+      rocket.rotation.z = data.REALGYRO_Z
+    }
   }
 </script>
 
